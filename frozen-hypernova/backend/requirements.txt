@@ -1,7 +1,0 @@
-MetaTrader5==5.0.45
-pandas
-numpy
-ta
-matplotlib
-plotly
-scipy
