@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Trading specific ignores
+# Ignore logs and temporary data that can be large
+*.log
+*.csv
+*.json
+!config.json
+!symbols.json
+
+# System specific
+.DS_Store
+Thumbs.db
+
+# sensitive data
+*.env
+.secret
+.key
+private_key.txt
