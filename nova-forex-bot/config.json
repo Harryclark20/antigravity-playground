@@ -1,0 +1,20 @@
+{
+    "mt5": {
+        "login": 0,
+        "password": "YOUR_PASSWORD",
+        "server": "YOUR_SERVER",
+        "path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+    },
+    "trading": {
+        "symbols": ["EURUSD", "GBPUSD", "USDJPY"],
+        "timeframe": "TIMEFRAME_M15",
+        "lot_size": 0.01,
+        "magic_number": 123456
+    },
+    "risk_management": {
+        "max_drawdown_percent": 5.0,
+        "max_risk_per_trade_percent": 1.0,
+        "stop_loss_pips": 20,
+        "take_profit_pips": 40
+    }
+}
