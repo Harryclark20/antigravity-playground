@@ -9,16 +9,28 @@ class MT5Gateway:
         
     def connect(self):
         """Initialize connection to MetaTrader 5 terminal."""
-        if not mt5.initialize(
-            path=self.config['mt5']['path'],
-            login=self.config['mt5']['login'],
-            password=self.config['mt5']['password'],
-            server=self.config['mt5']['server']
-        ):
-            print(f"Failed to initialize MT5: {mt5.last_error()}")
-            return False
+        # If login is 0 or YOUR_PASSWORD placeholder is present, try parameterless init
+        if self.config['mt5']['login'] == 0 or self.config['mt5']['password'] == "YOUR_PASSWORD":
+            print("No credentials provided. Attempting to connect to active MT5 session...")
+            if not mt5.initialize():
+                print(f"Failed to initialize MT5: {mt5.last_error()}")
+                return False
+        else:
+            if not mt5.initialize(
+                path=self.config['mt5']['path'],
+                login=self.config['mt5']['login'],
+                password=self.config['mt5']['password'],
+                server=self.config['mt5']['server']
+            ):
+                print(f"Failed to initialize MT5: {mt5.last_error()}")
+                return False
         
-        print(f"Successfully connected to MT5 Account: {self.config['mt5']['login']}")
+        account_info = mt5.account_info()
+        if account_info:
+            print(f"Successfully connected to MT5 Account: {account_info.login}")
+        else:
+            print("Connected to MT5, but could not retrieve account info.")
+            
         return True
 
     def get_account_info(self):
@@ -51,6 +63,19 @@ class MT5Gateway:
             "digits": symbol_info.digits,
             "point": symbol_info.point
         }
+
+    def get_server_time(self, symbol="EURUSD"):
+        """
+        Returns a local datetime anchored to the broker's server clock.
+        This is the correct way to handle MT5 tick fetching regardless of
+        local timezone offsets — MT5 copy_ticks_from() expects a local datetime
+        that corresponds to the server's current time.
+        """
+        import datetime
+        tick = mt5.symbol_info_tick(symbol)
+        if tick:
+            return datetime.datetime.fromtimestamp(tick.time)
+        return datetime.datetime.now()
 
     def shutdown(self):
         """Cleanly close the MT5 connection."""

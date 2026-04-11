@@ -3,6 +3,7 @@ import os
 import datetime
 import pandas as pd
 import numpy as np
+import MetaTrader5 as mt5
 
 # Add root directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,8 +27,11 @@ def run_autopilot_training(symbol="EURUSD", tick_count=500000):
 
     try:
         # 1. Fetch Historical Ticks
-        print(f"Fetching {tick_count} ticks for {symbol}...")
-        ticks = gateway.get_ticks(symbol, datetime.datetime.now(), tick_count)
+        # Starting 14 days before broker server time (timezone-safe)
+        fetch_from = gateway.get_server_time(symbol) - datetime.timedelta(days=14)
+        print(f"Fetching {tick_count} ticks for {symbol} starting from {fetch_from}...")
+        
+        ticks = gateway.get_ticks(symbol, fetch_from, tick_count)
         
         if ticks is None or len(ticks) == 0:
             print("ERROR: No tick data retrieved.")
@@ -39,19 +43,28 @@ def run_autopilot_training(symbol="EURUSD", tick_count=500000):
         df['time_ms'] = df['time_msc']
         df['mid'] = (df['bid'] + df['ask']) / 2
         
+        print(f"Dataframe initialized: {df.shape}")
+        
         # Calculate features (simplified for bulk processing)
         df['spread'] = df['ask'] - df['bid']
-        df['vol_imbalance'] = df['bid_volume'] - df['ask_volume']
         for n in [10, 50, 100]:
             df[f'momentum_{n}'] = df['mid'].diff(n)
         
         # Velocity calculation (optimized for bulk)
-        df['velocity'] = pd.to_datetime(df['time_ms'], unit='ms').to_series().rolling('500ms').count().values
+        df['time_dt'] = pd.to_datetime(df['time_ms'], unit='ms')
+        df['velocity'] = df.rolling('500ms', on='time_dt').count()['mid'].values
+        print(f"Features calculated: {df.shape}")
         
         # 3. Label Events (Triple-Barrier Method)
         print("Labeling alpha events using Triple-Barrier Method...")
         df = labeler.label_data(df)
+        print(f"Data labeled: {df.shape}")
+        
         df = df.dropna()
+        print(f"Data after dropna: {df.shape}")
+        
+        if len(df) > 0:
+            print(f"Sample row:\n{df.tail(1)}")
         
         print(f"Processed {len(df)} samples with {len(df[df['target'] == 1])} positive events.")
 
@@ -67,4 +80,3 @@ def run_autopilot_training(symbol="EURUSD", tick_count=500000):
 
 if __name__ == "__main__":
     run_autopilot_training()
- Riverside, CA

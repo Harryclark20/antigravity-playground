@@ -13,8 +13,18 @@
     },
     "risk_management": {
         "max_drawdown_percent": 5.0,
-        "max_risk_per_trade_percent": 1.0,
-        "stop_loss_pips": 20,
-        "take_profit_pips": 40
+        "max_risk_per_trade_percent": 0.25,
+        "stop_loss_pips": 1.5,
+        "take_profit_pips": 2.0,
+        "daily_loss_limit": 3.0
+    },
+    "websocket": {
+        "host": "127.0.0.1",
+        "port": 8765
+    },
+    "telegram": {
+        "enabled": false,
+        "token": "YOUR_BOT_TOKEN",
+        "chat_id": "YOUR_CHAT_ID"
     }
 }

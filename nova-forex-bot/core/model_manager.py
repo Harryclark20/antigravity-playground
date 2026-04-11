@@ -14,7 +14,7 @@ class ModelManager:
         """
         Trains the XGBoost model on chronologically split tick data.
         """
-        X = df[['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100', 'vol_imbalance']]
+        X = df[['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100']]
         y = df['target']
         
         # Chronological Split (Last 20% for validation)

@@ -9,32 +9,30 @@ class DataEngine:
         """
         Transforms raw ticks into micro-structure features.
         Expects a numpy array of ticks from mt5.copy_ticks_from.
+        Returns a single-row DataFrame representing the latest processed tick.
         """
-        if ticks is None or len(ticks) == 0:
+        if ticks is None or len(ticks) < 101:
+            # Need at least 101 rows: 100 for momentum_100 + 1 for current tick
             return None
-        
-        df = pd.DataFrame(ticks)
-        df['time_ms'] = df['time_msc'] # Use millisecond timestamps
-        
-        # 1. Spread Imbalance
-        df['spread'] = df['ask'] - df['bid']
-        
-        # 2. Tick Velocity (Ticks per rolling 500ms)
-        # We calculate how many ticks occurred in the last self.velocity_window_ms
-        df['velocity'] = df['time_ms'].rolling(window='500ms', on=pd.to_datetime(df['time_ms'], unit='ms')).count()
 
-        # 3. Micro-Momentum (Rate of change over 10, 50, 100 ticks)
-        # We look at the weighted average price (mid price)
+        df = pd.DataFrame(ticks)
+        df['time_ms'] = df['time_msc']  # Use millisecond timestamps
+
+        # 1. Spread Imbalance (in price, not pips)
+        df['spread'] = df['ask'] - df['bid']
+
+        # 2. Mid Price
         df['mid'] = (df['bid'] + df['ask']) / 2
-        
+
+        # 3. Tick Velocity — using time-based rolling window correctly
+        df['time_dt'] = pd.to_datetime(df['time_ms'], unit='ms')
+        df = df.sort_values('time_dt').reset_index(drop=True)
+        df['velocity'] = df.rolling(f'{self.velocity_window_ms}ms', on='time_dt').count()['mid']
+
+        # 4. Micro-Momentum (rate of change over last N ticks)
         for n in [10, 50, 100]:
             df[f'momentum_{n}'] = df['mid'].diff(n)
-            
-        # 4. Bid/Ask Volume Imbalance (if volume is available)
-        # Note: In MetaTrader 5, 'volume' in ticks depends on the broker/symbol
-        df['vol_imbalance'] = df['bid_volume'] - df['ask_volume']
 
-        # Cleanup: Remove NaN values produced by momentum diffs
-        features = df.dropna().tail(1) # Return the most recent processed tick as a feature vector
-        
-        return features
+        # Return only the latest valid (non-NaN) row
+        features = df.dropna().tail(1)
+        return features if len(features) > 0 else None
