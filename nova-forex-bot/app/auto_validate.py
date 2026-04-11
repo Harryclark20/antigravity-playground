@@ -24,8 +24,8 @@ def run_autopilot_validation(symbol="EURUSD", test_ticks=100000):
         return
 
     try:
-        # Fetch from 7 days ago (UTC) — MT5 server always operates on UTC
-        fetch_from = datetime.datetime.utcnow() - datetime.timedelta(days=7)
+        # Fetch 7 days before broker server time (timezone-safe)
+        fetch_from = gateway.get_server_time(symbol) - datetime.timedelta(days=7)
         print(f"Fetching {test_ticks} validation ticks from {fetch_from}...")
         ticks = gateway.get_ticks(symbol, fetch_from, test_ticks)
 
