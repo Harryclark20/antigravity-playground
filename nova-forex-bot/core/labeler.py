@@ -13,40 +13,37 @@ class TripleBarrierLabeler:
         1: Profit hit first
         0: Stop loss or timeout hit first
         """
-        labels = []
-        for i in range(len(df) - 100): # Ensure we have enough data forward to check barriers
-            start_price = df.iloc[i]['mid']
-            start_time = df.iloc[i]['time_ms']
-            
-            # Convert pips to absolute price delta (assumes 5-digit broker)
-            tp_delta = self.tp_pips * 0.0001
-            sl_delta = self.sl_pips * 0.0001
+        labels = np.zeros(len(df))
+        labels[:] = np.nan
+        
+        mids = df['mid'].values
+        times = df['time_ms'].values
+        
+        tp_delta = self.tp_pips * 0.0001
+        sl_delta = self.sl_pips * 0.0001
+        timeout_ms = self.timeout_secs * 1000
+        
+        for i in range(len(df) - 100):
+            start_price = mids[i]
+            start_time = times[i]
             
             upper_barrier = start_price + tp_delta
             lower_barrier = start_price - sl_delta
             
             label = 0 # Default (Loss or Timeout)
             
-            # Check future ticks
-            future_ticks = df.iloc[i+1 : i+500] # Look ahead 500 ticks
-            for _, tick in future_ticks.iterrows():
-                # Time constraint (Vertical Barrier)
-                if (tick['time_ms'] - start_time) > (self.timeout_secs * 1000):
+            # Look ahead up to 500 ticks using direct array access
+            for j in range(i + 1, min(i + 500, len(df))):
+                if (times[j] - start_time) > timeout_ms:
                     break
-                
-                # Profit Barrier
-                if tick['mid'] >= upper_barrier:
+                if mids[j] >= upper_barrier:
                     label = 1
                     break
-                
-                # Loss Barrier
-                if tick['mid'] <= lower_barrier:
+                if mids[j] <= lower_barrier:
                     label = 0
                     break
             
-            labels.append(label)
+            labels[i] = label
         
-        # Pad the labels to match the dataframe length
-        labels.extend([np.nan] * (len(df) - len(labels)))
         df['target'] = labels
         return df

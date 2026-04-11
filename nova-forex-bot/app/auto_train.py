@@ -31,7 +31,7 @@ def run_autopilot_training(symbol="EURUSD", tick_count=500000):
         fetch_from = gateway.get_server_time(symbol) - datetime.timedelta(days=14)
         print(f"Fetching {tick_count} ticks for {symbol} starting from {fetch_from}...")
         
-        ticks = gateway.get_ticks(symbol, fetch_from, tick_count)
+        ticks = gateway.get_ticks_from(symbol, fetch_from, tick_count)
         
         if ticks is None or len(ticks) == 0:
             print("ERROR: No tick data retrieved.")
