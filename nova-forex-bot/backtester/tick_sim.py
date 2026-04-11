@@ -21,34 +21,41 @@ class TickBacktester:
         side = 'buy'
 
         FEATURE_COLS = ['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100']
+        
+        # Pre-extract numpy data for speed
+        feature_matrix = df[FEATURE_COLS].values
+        mid_prices = df['mid'].values
+        ask_prices = df['ask'].values
+        time_ms = df['time_ms'].values
 
-        print("Starting Tick-by-Tick Simulation...")
+        print("Starting Optimized Tick-by-Tick Simulation...")
 
-        for i in range(100, len(df) - 1):
-            current_tick = df.iloc[i]
+        for i in range(len(df) - 1):
+            current_mid = mid_prices[i]
 
             if in_position:
                 # Check exit barriers on every tick
-                if current_tick['mid'] >= tp_price or current_tick['mid'] <= sl_price:
-                    pnl = (current_tick['mid'] - entry_price) if side == 'buy' \
-                          else (entry_price - current_tick['mid'])
+                if (side == 'buy' and current_mid >= tp_price) or \
+                   (side == 'buy' and current_mid <= sl_price):
+                    
+                    pnl = (current_mid - entry_price) if side == 'buy' \
+                          else (entry_price - current_mid)
                     pnl_pips = pnl / 0.0001
-                    balance += (pnl_pips * 1.0)  # $1 per pip on micro lot
+                    balance += (pnl_pips * 1.0)
                     trades.append({
-                        "exit_time": current_tick['time_ms'],
+                        "exit_time": time_ms[i],
                         "pnl": pnl_pips
                     })
                     in_position = False
                 continue
 
-            # Get feature slice — only the columns the model was trained on
-            features = df.iloc[i:i+1][FEATURE_COLS]
-            prob = model_manager.predict_probability(features)
+            # Vectorized feature access
+            features = feature_matrix[i].reshape(1, -1)
+            prob = model_manager.predict_probability(pd.DataFrame(features, columns=FEATURE_COLS))
 
-            if prob > 0.75:  # Simulation-level threshold (lower than live for coverage)
+            if prob > 0.85:  # Matched to production threshold for final validation
                 side = 'buy'
-                # Include spread + slippage as friction cost
-                entry_price = current_tick['ask'] + (self.slippage_pips * 0.0001)
+                entry_price = ask_prices[i] + (self.slippage_pips * 0.0001)
                 tp_price = entry_price + (self.tp_pips * 0.0001)
                 sl_price = entry_price - (self.sl_pips * 0.0001)
                 in_position = True

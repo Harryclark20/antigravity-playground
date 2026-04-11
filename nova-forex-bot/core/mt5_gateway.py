@@ -50,10 +50,19 @@ class MT5Gateway:
             "leverage": account_info.leverage
         }
 
-    def get_ticks(self, symbol, datetime_from, count, flags=mt5.COPY_TICKS_ALL):
-        """Retrieve recent tick data for a specific symbol."""
-        ticks = mt5.copy_ticks_from(symbol, datetime_from, count, flags)
+    def get_ticks(self, symbol, count, time_window_minutes=60, flags=mt5.COPY_TICKS_ALL):
+        """Retrieve the latest 'count' tick data for a specific symbol."""
+        import datetime
+        end_time = self.get_server_time(symbol)
+        start_time = end_time - datetime.timedelta(minutes=time_window_minutes)
+        ticks = mt5.copy_ticks_range(symbol, start_time, end_time, flags)
+        if ticks is not None and len(ticks) > 0:
+            return ticks[-count:]
         return ticks
+
+    def get_ticks_from(self, symbol, date_from, count, flags=mt5.COPY_TICKS_ALL):
+        """Retrieve 'count' ticks starting from 'date_from'."""
+        return mt5.copy_ticks_from(symbol, date_from, count, flags)
 
     def get_symbol_info(self, symbol):
         """Returns detailed symbol information (spread, point, etc)."""

@@ -23,8 +23,8 @@
         "port": 8765
     },
     "telegram": {
-        "enabled": false,
-        "token": "YOUR_BOT_TOKEN",
-        "chat_id": "YOUR_CHAT_ID"
+        "enabled": true,
+        "token": "8642860953:AAFUw9Df93PVIQB7m2u5u9Ou2JSnvAI2YnY",
+        "chat_id": "1112775912"
     }
 }

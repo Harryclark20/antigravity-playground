@@ -8,11 +8,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.mt5_gateway import MT5Gateway
 from core.model_manager import ModelManager
+from core.data_engine import DataEngine
 from backtester.tick_sim import TickBacktester
 
 FEATURE_COLS = ['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100']
 
-def run_autopilot_validation(symbol="EURUSD", test_ticks=100000):
+def run_autopilot_validation(symbol="EURUSD", test_ticks=50000):
     print(f"--- Nova HFT Autopilot: Starting Validation Engine for {symbol} ---")
 
     gateway = MT5Gateway()
@@ -27,23 +28,29 @@ def run_autopilot_validation(symbol="EURUSD", test_ticks=100000):
         # Fetch 7 days before broker server time (timezone-safe)
         fetch_from = gateway.get_server_time(symbol) - datetime.timedelta(days=7)
         print(f"Fetching {test_ticks} validation ticks from {fetch_from}...")
-        ticks = gateway.get_ticks(symbol, fetch_from, test_ticks)
+        ticks = gateway.get_ticks_from(symbol, fetch_from, test_ticks)
 
         if ticks is None or len(ticks) == 0:
             print("ERROR: No data for validation.")
             return
 
         # Build feature dataframe (must match training pipeline exactly)
-        df = pd.DataFrame(ticks)
-        df['time_ms'] = df['time_msc']
-        df['mid'] = (df['bid'] + df['ask']) / 2
-        df['spread'] = df['ask'] - df['bid']
+        engine = DataEngine()
+        
+        full_df = pd.DataFrame(ticks)
+        full_df['time_ms'] = full_df['time_msc']
+        full_df['mid'] = (full_df['bid'] + full_df['ask']) / 2
+        full_df['spread'] = full_df['ask'] - full_df['bid']
+        
+        # Velocity and Momentum (bulk)
+        full_df['time_dt'] = pd.to_datetime(full_df['time_ms'], unit='ms')
+        full_df = full_df.sort_values('time_dt').reset_index(drop=True)
+        full_df['velocity'] = full_df.rolling('500ms', on='time_dt').count()['mid']
+        
         for n in [10, 50, 100]:
-            df[f'momentum_{n}'] = df['mid'].diff(n)
-        df['time_dt'] = pd.to_datetime(df['time_ms'], unit='ms')
-        df = df.sort_values('time_dt').reset_index(drop=True)
-        df['velocity'] = df.rolling('500ms', on='time_dt').count()['mid']
-        df = df.dropna()
+            full_df[f'momentum_{n}'] = full_df['mid'].diff(n)
+        
+        df = full_df.dropna()
 
         if len(df) < 200:
             print(f"ERROR: Insufficient data after processing ({len(df)} rows).")

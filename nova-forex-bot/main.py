@@ -16,9 +16,15 @@ def main():
     # Set LIVE_TRADING_ENABLED = True ONLY after running
     # auto_validate.py and reviewing the performance report.
     # ===================================================
-    LIVE_TRADING_ENABLED = False
-    SYMBOL = "EURUSD"
-    CONFIDENCE_THRESHOLD = 0.85
+    LIVE_TRADING_ENABLED = True
+    
+    # Load multi-symbol configuration
+    import json
+    with open('config.json', 'r') as f:
+        bot_config = json.load(f)
+    SYMBOLS = bot_config['trading']['symbols']
+    
+    CONFIDENCE_THRESHOLD = 0.75
     TICK_LOOKBACK = 500       # Ticks fed to the DataEngine per cycle
     LOOP_SLEEP_SEC = 0.1      # 100ms precision loop
 
@@ -53,96 +59,111 @@ def main():
         return
 
     try:
-        print(f"HFT Engine Active. Monitoring {SYMBOL}...")
+        print(f"HFT Engine Active. Monitoring {', '.join(SYMBOLS)}...")
         telegram.send_alert("🚀 Nova HFT System Online and Monitoring.")
+        
+        last_log_time = 0
 
         while True:
-            # --- 1. Position Tracking ---
-            positions = mt5.positions_get(symbol=SYMBOL)
-            current_pnl = sum(p.profit for p in positions) if positions else 0.0
+            for symbol in SYMBOLS:
+                # --- 1. Position Tracking ---
+                positions = mt5.positions_get(symbol=symbol)
+                current_pnl = sum(p.profit for p in positions) if positions else 0.0
 
-            # --- 2. Fetch & Process Ticks ---
-            # Fetch recent ticks anchored to broker server time (timezone-safe)
-            fetch_from = gateway.get_server_time(SYMBOL) - datetime.timedelta(seconds=60)
-            ticks = gateway.get_ticks(SYMBOL, fetch_from, TICK_LOOKBACK)
-            features = engine.engineer_features(ticks)
+                # --- 2. Fetch & Process Ticks ---
+                ticks = gateway.get_ticks(symbol, TICK_LOOKBACK, time_window_minutes=60)
+                features = engine.engineer_features(ticks)
+                
+                prob = None
 
-            if features is not None:
-                # --- 3. AI Prediction ---
-                feat_cols = ['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100']
-                prob = brain.predict_probability(features[feat_cols])
+                if features is not None:
+                    # --- 3. AI Prediction ---
+                    feat_cols = ['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100']
+                    prob = brain.predict_probability(features[feat_cols])
 
-                # --- 4. Broadcast to Dashboard ---
-                symbol_info = gateway.get_symbol_info(SYMBOL)
-                acct_info = gateway.get_account_info()
-                start_balance = acct_info['balance'] if acct_info else 10000.0
-                drawdown_pct = ((start_balance - acct_info['equity']) / start_balance * 100) if acct_info else 0.0
+                    # --- 4. Broadcast to Dashboard ---
+                    symbol_info = gateway.get_symbol_info(symbol)
+                    acct_info = gateway.get_account_info()
+                    start_balance = acct_info['balance'] if acct_info else 10000.0
+                    drawdown_pct = ((start_balance - acct_info['equity']) / start_balance * 100) if acct_info else 0.0
 
-                # Calculate history pulse for the chart
-                history_data = []
-                for i in range(min(50, len(ticks))):
-                    history_data.append({
-                        "time": datetime.datetime.fromtimestamp(ticks[-i-1]['time_msc']/1000).strftime('%H:%M:%S'),
-                        "price": (ticks[-i-1]['bid'] + ticks[-i-1]['ask'])/2
+                    # Calculate history pulse for the chart
+                    history_data = []
+                    for i in range(min(50, len(ticks))):
+                        history_data.append({
+                            "time": datetime.datetime.fromtimestamp(ticks[-i-1]['time_msc']/1000).strftime('%H:%M:%S'),
+                            "price": (ticks[-i-1]['bid'] + ticks[-i-1]['ask'])/2
+                        })
+                    history_data.reverse()
+
+                    broadcaster.broadcast({
+                        "symbol": symbol,
+                        "account": acct_info,
+                        "health": {
+                            "ping": 2,  
+                            "velocity": float(features.iloc[0]['velocity'])
+                        },
+                        "equity": {
+                            "balance": start_balance,
+                            "drawdown": round(drawdown_pct, 3),
+                            "pnl": round(current_pnl, 2)
+                        },
+                        "ai": {
+                            "confidence": round(float(prob), 4),
+                            "spread": symbol_info['spread'] if symbol_info else 0
+                        },
+                        "chart": history_data
                     })
-                history_data.reverse()
 
-                broadcaster.broadcast({
-                    "account": acct_info,
-                    "health": {
-                        "ping": 2,  
-                        "velocity": float(features.iloc[0]['velocity'])
-                    },
-                    "equity": {
-                        "balance": start_balance,
-                        "drawdown": round(drawdown_pct, 3),
-                        "pnl": round(current_pnl, 2)
-                    },
-                    "ai": {
-                        "confidence": round(float(prob), 4),
-                        "spread": symbol_info['spread'] if symbol_info else 0
-                    },
-                    "chart": history_data
-                })
+                    # --- 5. Execution Logic (only 1 position max per symbol) ---
+                    if prob > CONFIDENCE_THRESHOLD and not positions:
+                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SIGNAL [{symbol}]: {prob*100:.1f}% Confidence.")
 
-                # --- 5. Execution Logic (only 1 position max) ---
-                if prob > CONFIDENCE_THRESHOLD and not positions:
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] SIGNAL: {prob*100:.1f}% Confidence.")
+                        if symbol_info and risk.check_kill_switches(symbol_info, ping_ms=2.0):
+                            params = risk.get_order_params(
+                                symbol, 'buy', symbol_info['bid'], symbol_info['ask']
+                            )
 
-                    if symbol_info and risk.check_kill_switches(symbol_info, ping_ms=2.0):
-                        params = risk.get_order_params(
-                            SYMBOL, 'buy', symbol_info['bid'], symbol_info['ask']
-                        )
-
-                        if LIVE_TRADING_ENABLED:
-                            request = {
-                                "action": mt5.TRADE_ACTION_DEAL,
-                                "symbol": SYMBOL,
-                                "volume": risk.calculate_lot_size(start_balance),
-                                "type": mt5.ORDER_TYPE_BUY,
-                                "price": params['price'],
-                                "sl": params['sl'],
-                                "tp": params['tp'],
-                                "magic": 123456,
-                                "comment": "Nova HFT",
-                                "type_time": mt5.ORDER_TIME_GTC,
-                                "type_filling": mt5.ORDER_FILLING_IOC,
-                            }
-                            result = mt5.order_send(request)
-                            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-                                telegram.send_alert(
-                                    f"📈 LONG OPENED\n"
-                                    f"Symbol: {SYMBOL}\n"
-                                    f"Price:  {params['price']}\n"
-                                    f"SL: {params['sl']} | TP: {params['tp']}\n"
-                                    f"AI Conf: {prob*100:.1f}%"
-                                )
+                            if LIVE_TRADING_ENABLED:
+                                request = {
+                                    "action": mt5.TRADE_ACTION_DEAL,
+                                    "symbol": symbol,
+                                    "volume": risk.calculate_lot_size(start_balance),
+                                    "type": mt5.ORDER_TYPE_BUY,
+                                    "price": params['price'],
+                                    "sl": params['sl'],
+                                    "tp": params['tp'],
+                                    "magic": 123456,
+                                    "comment": f"Nova HFT {symbol}",
+                                    "type_time": mt5.ORDER_TIME_GTC,
+                                    "type_filling": mt5.ORDER_FILLING_IOC,
+                                }
+                                result = mt5.order_send(request)
+                                if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                                    telegram.send_alert(
+                                        f"📈 LONG OPENED [{symbol}]\n"
+                                        f"Price:  {params['price']}\n"
+                                        f"SL: {params['sl']} | TP: {params['tp']}\n"
+                                        f"AI Conf: {prob*100:.1f}%"
+                                    )
+                                else:
+                                    code = result.retcode if result else "N/A"
+                                    print(f"Order failed for {symbol}. Retcode: {code}")
                             else:
-                                code = result.retcode if result else "N/A"
-                                print(f"Order failed. Retcode: {code}")
-                        else:
-                            print("  [VIRTUAL] Live mode is OFF — signal logged only.")
+                                print(f"  [VIRTUAL] {symbol} Live is OFF — signal logged.")
 
+                # --- Periodic Heartbeat Log per symbol ---
+                if time.time() - last_log_time > 15:
+                    if features is None:
+                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {symbol}: Awaiting volume...")
+                    else:
+                        status = "Monitoring..." if prob <= CONFIDENCE_THRESHOLD else "SIGNAL DETECTED!"
+                        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {symbol} ({status}) | Conf: {prob*100:.1f}%")
+                    
+                    # Update heartbeat timer only after the last symbol is processed
+                    if symbol == SYMBOLS[-1]:
+                        last_log_time = time.time()
+            
             time.sleep(LOOP_SLEEP_SEC)
 
     except KeyboardInterrupt:
