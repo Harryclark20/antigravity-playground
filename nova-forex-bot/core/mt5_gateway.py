@@ -34,6 +34,24 @@ class MT5Gateway:
             "leverage": account_info.leverage
         }
 
+    def get_ticks(self, symbol, datetime_from, count, flags=mt5.COPY_TICKS_ALL):
+        """Retrieve recent tick data for a specific symbol."""
+        ticks = mt5.copy_ticks_from(symbol, datetime_from, count, flags)
+        return ticks
+
+    def get_symbol_info(self, symbol):
+        """Returns detailed symbol information (spread, point, etc)."""
+        symbol_info = mt5.symbol_info(symbol)
+        if symbol_info is None:
+            return None
+        return {
+            "bid": symbol_info.bid,
+            "ask": symbol_info.ask,
+            "spread": symbol_info.spread,
+            "digits": symbol_info.digits,
+            "point": symbol_info.point
+        }
+
     def shutdown(self):
         """Cleanly close the MT5 connection."""
         mt5.shutdown()
