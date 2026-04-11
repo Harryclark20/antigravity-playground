@@ -78,9 +78,19 @@ def main():
                 start_balance = acct_info['balance'] if acct_info else 10000.0
                 drawdown_pct = ((start_balance - acct_info['equity']) / start_balance * 100) if acct_info else 0.0
 
+                # Calculate history pulse for the chart
+                history_data = []
+                for i in range(min(50, len(ticks))):
+                    history_data.append({
+                        "time": datetime.datetime.fromtimestamp(ticks[-i-1]['time_msc']/1000).strftime('%H:%M:%S'),
+                        "price": (ticks[-i-1]['bid'] + ticks[-i-1]['ask'])/2
+                    })
+                history_data.reverse()
+
                 broadcaster.broadcast({
+                    "account": acct_info,
                     "health": {
-                        "ping": 2,  # Placeholder; replace with real ping measurement
+                        "ping": 2,  
                         "velocity": float(features.iloc[0]['velocity'])
                     },
                     "equity": {
@@ -91,7 +101,8 @@ def main():
                     "ai": {
                         "confidence": round(float(prob), 4),
                         "spread": symbol_info['spread'] if symbol_info else 0
-                    }
+                    },
+                    "chart": history_data
                 })
 
                 # --- 5. Execution Logic (only 1 position max) ---

@@ -19,12 +19,14 @@ class Broadcaster:
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         
-        start_server = websockets.serve(self._handler, self.host, self.port)
-        self.loop.run_until_complete(start_server)
-        print(f"WebSocket Broadcaster started on ws://{self.host}:{self.port}")
-        self.loop.run_forever()
+        async def main_server():
+            async with websockets.serve(self._handler, self.host, self.port):
+                print(f"WebSocket Broadcaster started on ws://{self.host}:{self.port}")
+                await asyncio.Future()
 
-    async def _handler(self, websocket, path):
+        self.loop.run_until_complete(main_server())
+
+    async def _handler(self, websocket):
         """Handles new UI client connections."""
         self.clients.add(websocket)
         try:

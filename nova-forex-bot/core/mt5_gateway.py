@@ -39,6 +39,10 @@ class MT5Gateway:
         if account_info is None:
             return None
         return {
+            "login": account_info.login,
+            "server": account_info.server,
+            "name": account_info.name,
+            "currency": account_info.currency,
             "balance": account_info.balance,
             "equity": account_info.equity,
             "margin": account_info.margin,
