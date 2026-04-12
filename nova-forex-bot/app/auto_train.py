@@ -49,6 +49,20 @@ def run_autopilot_training(symbol="EURUSD", tick_count=500000):
         df['spread'] = df['ask'] - df['bid']
         for n in [10, 50, 100]:
             df[f'momentum_{n}'] = df['mid'].diff(n)
+
+        # Micro-RSI
+        delta = df['mid'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=50).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=50).mean()
+        rs = gain / loss
+        df['rsi_50'] = 100 - (100 / (1 + rs))
+        df['rsi_50'] = df['rsi_50'].fillna(50)
+
+        # Micro-Bollinger Z-Score
+        roll_mean = df['mid'].rolling(window=50).mean()
+        roll_std = df['mid'].rolling(window=50).std()
+        df['bb_zscore'] = (df['mid'] - roll_mean) / roll_std
+        df['bb_zscore'] = df['bb_zscore'].replace([np.inf, -np.inf], np.nan).fillna(0)
         
         # Velocity calculation (optimized for bulk)
         df['time_dt'] = pd.to_datetime(df['time_ms'], unit='ms')

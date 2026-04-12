@@ -7,16 +7,19 @@ class RiskEngine:
         self.max_spread = 0.5 # Default max spread in pips for HFT
         self.max_latency_ms = 5.0
 
-    def calculate_lot_size(self, balance, risk_percent=0.25):
+    def calculate_lot_size(self, balance, prob=None):
         """
-        Calculates lot size based on equity risk.
-        Very conservative for high frequency (0.25% recommended).
+        Calculates lot size dynamically based on AI confidence (Pseudo-Kelly criterion).
         """
-        risk_amount = balance * (risk_percent / 100)
-        # Simplified lot calculation (requires symbol info for exactness)
-        # Assuming 1 lot = 100,000 units and 1 pip = $10 on standard account
-        lot_size = self.config['trading']['lot_size'] # Fallback
-        return lot_size
+        base_lot = self.config['trading']['lot_size'] # Base conservative lot
+        
+        if prob is not None:
+            if prob >= 0.95:
+                return round(base_lot * 3.0, 2) # Triple load on ultra-high edge
+            elif prob >= 0.85:
+                return round(base_lot * 2.0, 2) # Double load on very high edge
+                
+        return base_lot
 
     def check_kill_switches(self, symbol_info, ping_ms):
         """

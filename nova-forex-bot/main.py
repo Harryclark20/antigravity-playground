@@ -78,7 +78,7 @@ def main():
 
                 if features is not None:
                     # --- 3. AI Prediction ---
-                    feat_cols = ['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100']
+                    feat_cols = ['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100', 'rsi_50', 'bb_zscore']
                     prob = brain.predict_probability(features[feat_cols])
 
                     # --- 4. Broadcast to Dashboard ---
@@ -128,9 +128,10 @@ def main():
                                 request = {
                                     "action": mt5.TRADE_ACTION_DEAL,
                                     "symbol": symbol,
-                                    "volume": risk.calculate_lot_size(start_balance),
+                                    "volume": risk.calculate_lot_size(start_balance, prob=prob),
                                     "type": mt5.ORDER_TYPE_BUY,
                                     "price": params['price'],
+
                                     "sl": params['sl'],
                                     "tp": params['tp'],
                                     "magic": 123456,

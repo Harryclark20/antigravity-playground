@@ -33,6 +33,20 @@ class DataEngine:
         for n in [10, 50, 100]:
             df[f'momentum_{n}'] = df['mid'].diff(n)
 
+        # 5. Micro-RSI (50 ticks)
+        delta = df['mid'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=50).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=50).mean()
+        rs = gain / loss
+        df['rsi_50'] = 100 - (100 / (1 + rs))
+        df['rsi_50'] = df['rsi_50'].fillna(50)
+
+        # 6. Micro-Bollinger Band Z-Score (50 ticks)
+        roll_mean = df['mid'].rolling(window=50).mean()
+        roll_std = df['mid'].rolling(window=50).std()
+        df['bb_zscore'] = (df['mid'] - roll_mean) / roll_std
+        df['bb_zscore'] = df['bb_zscore'].replace([np.inf, -np.inf], np.nan).fillna(0)
+
         # Return only the latest valid (non-NaN) row
         features = df.dropna().tail(1)
         return features if len(features) > 0 else None
