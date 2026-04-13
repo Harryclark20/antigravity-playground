@@ -212,7 +212,7 @@ st.markdown(f"""
     <div class="nav-banner">
         <div class="logo-container">
             <h1 class="logo-text">NOVA HFT</h1>
-            <span class="account-meta">| &nbsp; {acct.get('name', 'N/A')} &nbsp;•&nbsp; {acct.get('server', 'N/A')} &nbsp;•&nbsp; ID: {acct.get('login', 'N/A')} &nbsp;•&nbsp; Leverage: 1:{acct.get('leverage', 'N/A')}</span>
+            <span class="account-meta">| &nbsp; {acct.get('name', 'N/A')} &nbsp;•&nbsp; {acct.get('server', 'N/A')} &nbsp;•&nbsp; ID: {acct.get('login', 'N/A')} &nbsp;•&nbsp; Leverage: 1:{acct.get('leverage', 'N/A')} &nbsp;•&nbsp; <a href="https://github.com/Harryclark20" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600;">@Harryclark20</a></span>
         </div>
         <div class="status-pill">
             <div class="status-dot"></div>

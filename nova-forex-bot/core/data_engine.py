@@ -47,6 +47,9 @@ class DataEngine:
         df['bb_zscore'] = (df['mid'] - roll_mean) / roll_std
         df['bb_zscore'] = df['bb_zscore'].replace([np.inf, -np.inf], np.nan).fillna(0)
 
+        # 7. Tick Volatility (100-tick Std)
+        df['volatility'] = df['mid'].rolling(window=100).std()
+
         # Return only the latest valid (non-NaN) row
         features = df.dropna().tail(1)
         return features if len(features) > 0 else None

@@ -16,6 +16,8 @@
         "max_risk_per_trade_percent": 0.25,
         "stop_loss_pips": 1.5,
         "take_profit_pips": 2.0,
+        "max_spread_pips": 1.0,
+        "max_latency_ms": 100.0,
         "daily_loss_limit": 3.0
     },
     "websocket": {

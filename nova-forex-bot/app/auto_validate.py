@@ -2,6 +2,7 @@ import sys
 import os
 import datetime
 import pandas as pd
+import numpy as np
 
 # Add root directory to path for local imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -11,7 +12,7 @@ from core.model_manager import ModelManager
 from core.data_engine import DataEngine
 from backtester.tick_sim import TickBacktester
 
-FEATURE_COLS = ['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100']
+FEATURE_COLS = ['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100', 'rsi_50', 'bb_zscore']
 
 def run_autopilot_validation(symbol="EURUSD", test_ticks=50000):
     print(f"--- Nova HFT Autopilot: Starting Validation Engine for {symbol} ---")
@@ -49,6 +50,20 @@ def run_autopilot_validation(symbol="EURUSD", test_ticks=50000):
         
         for n in [10, 50, 100]:
             full_df[f'momentum_{n}'] = full_df['mid'].diff(n)
+
+        # Micro-RSI
+        delta = full_df['mid'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=50).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=50).mean()
+        rs = gain / loss
+        full_df['rsi_50'] = 100 - (100 / (1 + rs))
+        full_df['rsi_50'] = full_df['rsi_50'].fillna(50)
+
+        # Micro-Bollinger Z-Score
+        roll_mean = full_df['mid'].rolling(window=50).mean()
+        roll_std = full_df['mid'].rolling(window=50).std()
+        full_df['bb_zscore'] = (full_df['mid'] - roll_mean) / roll_std
+        full_df['bb_zscore'] = full_df['bb_zscore'].replace([np.inf, -np.inf], np.nan).fillna(0)
         
         df = full_df.dropna()
 

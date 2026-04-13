@@ -90,6 +90,20 @@ class MT5Gateway:
             return datetime.datetime.fromtimestamp(tick.time)
         return datetime.datetime.now()
 
+    def get_latency(self, active=False):
+        """
+        Returns the terminal latency in milliseconds.
+        If active=True, it measures the real-time round-trip of a small request.
+        """
+        if active:
+            import time
+            start = time.perf_counter()
+            mt5.account_info()
+            return (time.perf_counter() - start) * 1000.0
+            
+        t_info = mt5.terminal_info()
+        return t_info.ping_last if t_info else 10.0
+
     def shutdown(self):
         """Cleanly close the MT5 connection."""
         mt5.shutdown()

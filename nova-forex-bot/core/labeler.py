@@ -9,7 +9,7 @@ class TripleBarrierLabeler:
 
     def label_data(self, df):
         """
-        Labels a dataframe of ticks using the Triple-Barrier Method.
+        Labels a dataframe of ticks using Volatility-Adjusted Triple-Barrier.
         1: Profit hit first
         0: Stop loss or timeout hit first
         """
@@ -18,21 +18,27 @@ class TripleBarrierLabeler:
         
         mids = df['mid'].values
         times = df['time_ms'].values
+        vols = df['volatility'].values
         
-        tp_delta = self.tp_pips * 0.0001
-        sl_delta = self.sl_pips * 0.0001
         timeout_ms = self.timeout_secs * 1000
         
         for i in range(len(df) - 100):
             start_price = mids[i]
             start_time = times[i]
+            current_vol = vols[i]
             
-            upper_barrier = start_price + tp_delta
-            lower_barrier = start_price - sl_delta
+            # Skip if volatility is not available yet
+            if np.isnan(current_vol) or current_vol == 0:
+                continue
+
+            # Dynamic Barriers: Institutional multiples of Standard Deviation
+            # Typically HFT uses 2-3x Volatility for targets
+            upper_barrier = start_price + (current_vol * 3.0)
+            lower_barrier = start_price - (current_vol * 2.0)
             
             label = 0 # Default (Loss or Timeout)
             
-            # Look ahead up to 500 ticks using direct array access
+            # Look ahead up to 500 ticks
             for j in range(i + 1, min(i + 500, len(df))):
                 if (times[j] - start_time) > timeout_ms:
                     break

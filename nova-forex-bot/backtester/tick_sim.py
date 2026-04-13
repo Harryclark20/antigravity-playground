@@ -20,7 +20,7 @@ class TickBacktester:
         sl_price = 0.0
         side = 'buy'
 
-        FEATURE_COLS = ['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100']
+        FEATURE_COLS = ['velocity', 'spread', 'momentum_10', 'momentum_50', 'momentum_100', 'rsi_50', 'bb_zscore']
         
         # Pre-extract numpy data for speed
         feature_matrix = df[FEATURE_COLS].values
@@ -53,7 +53,7 @@ class TickBacktester:
             features = feature_matrix[i].reshape(1, -1)
             prob = model_manager.predict_probability(pd.DataFrame(features, columns=FEATURE_COLS))
 
-            if prob > 0.85:  # Matched to production threshold for final validation
+            if prob > 0.75:  # Matched to NEW production threshold (75% Dual Model agreement)
                 side = 'buy'
                 entry_price = ask_prices[i] + (self.slippage_pips * 0.0001)
                 tp_price = entry_price + (self.tp_pips * 0.0001)
